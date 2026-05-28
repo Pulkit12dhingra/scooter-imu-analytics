@@ -1,6 +1,6 @@
 # Scooter IMU Analytics
 
-Multi-use-case analytics platform for scooter gyroscope (IMU) data. Built on top of an Ather scooter dataset, the project ships eight rule-based analysis algorithms, three ML models, a Streamlit dashboard, a FastAPI REST API, and a suite of Jupyter notebooks — all managed with [uv](https://docs.astral.sh/uv/).
+Multi-use-case analytics platform for scooter gyroscope (IMU) data. Built on top of an Ather scooter dataset, the project ships eight rule-based analysis algorithms, three ML models, a Streamlit dashboard, a FastAPI REST API, and a suite of Jupyter notebooks, all managed with [uv](https://docs.astral.sh/uv/).
 
 ## Use cases
 
@@ -9,7 +9,7 @@ Multi-use-case analytics platform for scooter gyroscope (IMU) data. Built on top
 | 1 | Turn Indicator | Left/right turn events and their intensity level |
 | 2 | Fall Detection | Multi-axis magnitude spikes indicating accidents |
 | 3 | Road Quality | Rolling RMS severity score per road segment |
-| 4 | Riding Style | Jerk-based smoothness score (0–100) |
+| 4 | Riding Style | Jerk-based smoothness score (0-100) |
 | 5 | Theft Detection | Unauthorized movement of a parked scooter |
 | 6 | Lane Classifier | Straight / lane change / turn / sharp turn classification |
 | 7 | Path Reconstruction | Dead-reckoning heading from GYR_Y integration |
@@ -33,7 +33,7 @@ src/scooter_imu/
     dashboard/          # Streamlit multi-page dashboard
 
 ml/
-    features.py         # sliding-window feature extraction (39 features / window)
+    features.py         # sliding-window feature extraction (39 features per window)
     labeler.py          # ground-truth labels from trip segment schedule
     classifiers.py      # ManeuverClassifier (Random Forest)
     anomaly.py          # IMUAnomalyDetector (Isolation Forest)
@@ -47,7 +47,7 @@ ml/
 
 notebooks/              # 00_eda through 08_wear_detection (rule-based analysis)
 scripts/
-    preprocess.py       # raw CSV → parquet CLI
+    preprocess.py          # raw CSV to parquet CLI
     generate_trip_data.py  # synthetic trip data generator
 tests/                  # pytest suite (13 tests)
 data/
@@ -151,7 +151,7 @@ class BaseDetector(ABC):
     def predict(self, df: pd.DataFrame) -> pd.DataFrame: ...
 ```
 
-Each detector receives the preprocessed wide-format DataFrame and returns it with additional result columns appended — making them trivially composable:
+Each detector receives the preprocessed wide-format DataFrame and returns it with additional result columns appended, making them trivially composable:
 
 ```python
 from scooter_imu.data.loader import load_raw
@@ -197,7 +197,6 @@ cluster, label = rp.predict_one(df)            # e.g. (2, "High Risk")
 
 ## Algorithm logic
 
-
 All algorithms operate on the wide-format DataFrame produced by the preprocessor. Input columns used by every algorithm: `timestamp`, `gyr_x`, `gyr_y`, `gyr_z`, `gyr_magnitude`, `dt`.
 
 ### Preprocessing
@@ -206,7 +205,7 @@ The raw long-format CSV is pivoted to wide format, then three derived columns ar
 
 ```
 sensor_lag_s  = (received_ts - ts).total_seconds()
-gyr_magnitude = sqrt(gyr_x² + gyr_y² + gyr_z²)        [rad/s]
+gyr_magnitude = sqrt(gyr_x^2 + gyr_y^2 + gyr_z^2)     [rad/s]
 dt            = timestamp.diff()  (filled 0.02 s for first row)
 ```
 
@@ -214,32 +213,32 @@ dt            = timestamp.diff()  (filled 0.02 s for first row)
 
 ### 1. Turn Indicator
 
-**Input signal:** `gyr_y` (yaw rate, deg/s)  
-**Thresholds:** dead-band = 0.05 rad/s (~3 deg/s), sharp-turn = 1.2 rad/s (~69 deg/s)
+**Input signal:** `gyr_y` (yaw rate, rad/s)
+**Thresholds:** dead-band = 0.05 rad/s, sharp-turn = 1.2 rad/s
 
 ```
 turn_direction:
-    gyr_y >  dead_band  →  "Left"
-    gyr_y < -dead_band  →  "Right"
-    otherwise           →  NA
+    gyr_y >  dead_band  -> "Left"
+    gyr_y < -dead_band  -> "Right"
+    otherwise           -> NA
 
 turn_level:
-    |gyr_y| <= dead_band             →  0  (straight)
-    dead_band < |gyr_y| <= sharp_turn →  1  (normal turn)
-    |gyr_y| > sharp_turn              →  2  (sharp turn)
+    |gyr_y| <= dead_band              -> 0  (straight)
+    dead_band < |gyr_y| <= sharp_turn -> 1  (normal turn)
+    |gyr_y| > sharp_turn              -> 2  (sharp turn)
 ```
 
 ---
 
 ### 2. Fall Detection
 
-**Input signal:** `gyr_magnitude` (deg/s)  
-**Thresholds:** magnitude threshold = 2.0 rad/s (~115 deg/s), rolling window = 100 ms
+**Input signal:** `gyr_magnitude` (rad/s)
+**Thresholds:** magnitude threshold = 2.0 rad/s, rolling window = 100 ms
 
 ```
-window_size   = max(1, int(0.1 / median_dt))
-magnitude_peak = gyr_magnitude.rolling(window_size, center=True).max()
-fall_event     = magnitude_peak > threshold
+window_size      = max(1, int(0.1 / median_dt))
+magnitude_peak   = gyr_magnitude.rolling(window_size, center=True).max()
+fall_event       = magnitude_peak > threshold
 fall_event_start = fall_event AND NOT fall_event.shift(1)   (rising edge)
 ```
 
@@ -247,12 +246,12 @@ fall_event_start = fall_event AND NOT fall_event.shift(1)   (rising edge)
 
 ### 3. Road Quality
 
-**Input signal:** `gyr_x` (pitch rate, deg/s)  
+**Input signal:** `gyr_x` (pitch rate, rad/s)
 **Parameters:** window = 5 s, severity scale = 0.5
 
 ```
 window_size   = max(1, int(5.0 / median_dt))
-road_rms      = sqrt( mean(gyr_x²) over rolling window )
+road_rms      = sqrt( mean(gyr_x^2) over rolling window )
 road_severity = clip(road_rms / 0.5,  0, 1)             [0 = smooth, 1 = severe]
 ```
 
@@ -260,22 +259,22 @@ road_severity = clip(road_rms / 0.5,  0, 1)             [0 = smooth, 1 = severe]
 
 ### 4. Riding Style
 
-**Input signal:** `gyr_y` (yaw rate, deg/s)  
-**Parameters:** jerk scale = 5.0 deg/s², smoothing window = 10 s
+**Input signal:** `gyr_y` (yaw rate, rad/s)
+**Parameters:** jerk scale = 5.0 rad/s^2, smoothing window = 10 s
 
 ```
-jerk         = diff(gyr_y) / dt                          [deg/s²]
+jerk         = diff(gyr_y) / dt
 window_size  = max(1, int(10.0 / median_dt))
 aggression   = clip( quantile_95(|jerk|, window) / 5.0,  0, 1 )
-smooth_score = round((1 - aggression) × 100, 1)          [0 = aggressive, 100 = smooth]
+smooth_score = round((1 - aggression) * 100, 1)          [0 = aggressive, 100 = smooth]
 ```
 
 ---
 
 ### 5. Theft Detection
 
-**Input signal:** `gyr_magnitude` (deg/s)  
-**Thresholds:** stationary threshold = 0.01 rad/s (~0.6 deg/s), movement window = 2 s
+**Input signal:** `gyr_magnitude` (rad/s)
+**Thresholds:** stationary threshold = 0.01 rad/s, movement window = 2 s
 
 ```
 is_moving      = gyr_magnitude > 0.01
@@ -284,12 +283,14 @@ movement_ratio = mean(is_moving) over rolling window
 theft_alert    = movement_ratio > 0.5
 ```
 
+Note: designed to run on parked-period data only. Apply to segments where the scooter is known to be stationary.
+
 ---
 
 ### 6. Lane Classifier
 
-**Input signal:** `gyr_y` (yaw rate, deg/s)  
-**Thresholds:** turn magnitude = 0.08 rad/s (~5 deg/s), sustained duration = 0.5 s, sharp threshold = 1.2 rad/s (~69 deg/s)
+**Input signal:** `gyr_y` (yaw rate, rad/s)
+**Thresholds:** turn magnitude = 0.08 rad/s, sustained duration = 0.5 s, sharp threshold = 1.2 rad/s
 
 ```
 active       = (|gyr_y| >= 0.08).astype(int)
@@ -297,45 +298,45 @@ min_samples  = max(1, int(0.5 / median_dt))
 sustained    = rolling_sum(active, min_samples) >= min_samples
 
 maneuver (applied in order, each overrides previous):
-    default           →  "straight"
-    active == 1       →  "lane_change"
-    sustained == True →  "turn"
-    |gyr_y| > 1.2     →  "sharp_turn"
+    default           -> "straight"
+    active == 1       -> "lane_change"
+    sustained == True -> "turn"
+    |gyr_y| > 1.2     -> "sharp_turn"
 ```
 
 ---
 
 ### 7. Path Reconstruction
 
-**Input signals:** `gyr_y` (rad/s), `dt`  
+**Input signals:** `gyr_y` (rad/s), `dt`
 **Parameter:** initial heading = 0.0 deg
 
 Dead-reckoning integration of yaw rate to recover heading:
 
 ```
-heading_delta_deg = degrees(gyr_y) × dt            [incremental heading change]
+heading_delta_deg = degrees(gyr_y) * dt
 cumulative        = initial_heading + cumsum(heading_delta_deg)
-heading_deg       = ((cumulative + 180) % 360) − 180   [normalised to −180 … +180]
+heading_deg       = ((cumulative + 180) % 360) - 180   [normalised to -180..+180]
 ```
 
 ---
 
 ### 8. Wear Detection
 
-**Input signal:** `gyr_x` (pitch rate, deg/s)  
-**Parameters:** FFT window = 30 s, wear frequency band = 5–20 Hz
+**Input signal:** `gyr_x` (pitch rate, rad/s)
+**Parameters:** FFT window = 30 s, wear frequency band = 5-20 Hz
 
 ```
-fs          = 1.0 / median_dt                          [sampling frequency, Hz]
-half_window = max(4, int((30.0 / median_dt) / 2))      [samples per half-window]
+fs          = 1.0 / median_dt
+half_window = max(4, int((30.0 / median_dt) / 2))
 
-Per sample, extract segment x[i−half_window : i+half_window]:
+Per sample, extract segment x[i-half_window : i+half_window]:
     freqs, psd = periodogram(segment, fs=fs)
-    band_power = mean(psd[ 5 Hz ≤ freqs ≤ 20 Hz ])
+    band_power = mean(psd[ 5 Hz <= freqs <= 20 Hz ])
 
-mean_bp     = mean(band_power over all samples)
-std_bp      = std(band_power over all samples)
-wear_anomaly = band_power > (mean_bp + 2 × std_bp)
+mean_bp      = mean(band_power over all samples)
+std_bp       = std(band_power over all samples)
+wear_anomaly = band_power > (mean_bp + 2 * std_bp)
 ```
 
 ---
@@ -346,19 +347,21 @@ wear_anomaly = band_power > (mean_bp + 2 × std_bp)
 
 | Time (s) | Event |
 |---|---|
-| 0–30 | Parked |
-| 30–90 | Straight riding |
-| 60–90 | Left turn (+0.30 rad/s yaw) |
-| 150–180 | Bumpy road (high pitch rate) |
-| 180–210 | Right turn (−0.38 rad/s yaw) |
-| 270–330 | Lane changes (±0.18 rad/s) |
-| 360–380 | Sharp right turn (−1.3 rad/s) |
-| 380–420 | Wear vibration (8 Hz periodic) |
-| 420–430 | Fall event (magnitude ~5.3 rad/s) |
-| 480–510 | Aggressive riding |
-| 570–600 | Parked |
+| 0-30 | Parked |
+| 30-60 | Straight riding |
+| 60-90 | Left turn (+0.30 rad/s yaw) |
+| 90-150 | Straight riding |
+| 150-180 | Bumpy road (high pitch rate) |
+| 180-210 | Right turn (-0.38 rad/s yaw) |
+| 270-330 | Lane changes (+/-0.18 rad/s) |
+| 360-380 | Sharp right turn (-1.3 rad/s) |
+| 380-420 | Wear vibration (8 Hz periodic) |
+| 420-430 | Fall event (magnitude ~5.3 rad/s) |
+| 480-510 | Aggressive riding |
+| 570-600 | Parked |
 
-Call `generate_trip_df(seed)` from `scripts/generate_trip_data.py` to generate additional statistically distinct trips (same event structure, different random noise).
+Call `generate_trip_df(seed)` from `scripts/generate_trip_data.py` to produce additional statistically distinct trips with the same event structure but different random noise.
 
 `Data/Ather_Submission.html` contains the original exploratory data analysis notebook exported from Jupyter.
+
 
