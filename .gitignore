@@ -11,15 +11,18 @@ build/
 # Virtual environment
 .venv/
 
-# uv
-uv.lock
+# C++ and embedded build
+embedded/build/
+build/
+*.o
+*.a
+*.so
+*.dylib
 
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb_checkpoints
-
-# ML model artifacts (large binary files)
+# Edge and model artifacts
+artifacts/
 ml/models/*.joblib
+ml/models/*.onnx
 
 # Processed data
 data/processed/

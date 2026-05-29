@@ -32,6 +32,11 @@ ml = [
     "xgboost>=2.0",
     "joblib>=1.4",
 ]
+edge-ml = [
+    "onnx>=1.16",
+    "onnxruntime>=1.18",
+    "skl2onnx>=1.16",
+]
 
 [build-system]
 requires = ["hatchling"]
