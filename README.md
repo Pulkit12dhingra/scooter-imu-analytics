@@ -23,6 +23,41 @@ Multi-use-case analytics platform for scooter gyroscope (IMU) data. Built on top
 | M2 | IMUAnomalyDetector | Isolation Forest | Detects abnormal riding events (falls, unusual vibration) without hard-coded thresholds |
 | M3 | RiskProfiler | K-Means (k=3) | Clusters fleet trips into Low / Medium / High risk tiers from 16 trip-level features |
 
+---
+
+## EdgeScoot: Embedded Edge ML Pipeline
+
+EdgeScoot extends `scooter-imu-analytics` with a native, software-in-the-loop embedded ML pipeline targeting NVIDIA Jetson Orin Nano and edge micro-mobility devices:
+
+- **Online Procedural Simulator:** Generates continuous synthetic gyro streams (`scripts/live_imu_simulator.py`) with zero dependency on recorded CSVs.
+- **C++17 Stream Processor:** Fixed-size ring buffering, manual 3-bin DFT, and exact parity port of the 39 canonical features (`embedded/`).
+- **ONNX Runtime CPU Inference:** Native real-time inference achieving **~7 µs median latency** (0.01% of the 500 ms real-time deadline).
+- **Comprehensive Documentation:**
+  - [Architecture & Pipeline](docs/edge-pipeline.md)
+  - [Development Environment](docs/development-environment.md)
+  - [Simulator Design & Signal Contract](docs/simulator-design.md)
+  - [Synthetic Data Methodology](docs/synthetic-data-methodology.md)
+  - [Benchmarking & Optimization Report](docs/benchmark-report.md)
+  - [NVIDIA TensorRT Setup](docs/tensorrt-setup.md)
+  - [Jetson Orin Nano Deployment](docs/jetson-deployment.md)
+
+### Quickstart: Live Simulation to Native C++ Inference
+
+```bash
+# 1. Prepare environment
+uv sync --locked --extra dev --extra ml --extra edge-ml
+
+# 2. Build C++ engine
+cmake -S embedded -B embedded/build
+cmake --build embedded/build
+
+# 3. Stream real-time simulated IMU readings into native C++ engine:
+uv run python -u scripts/live_imu_simulator.py --mode live --rate 50 --format csv --duration 30 | \
+  ./embedded/build/edge_scoot --model artifacts/edge/maneuver_rf.onnx
+```
+
+---
+
 ## Project structure
 
 ```
